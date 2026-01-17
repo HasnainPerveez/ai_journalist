@@ -1,31 +1,39 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { BlogData, VerificationStatus } from "../types";
 
-// In a real production app, this prompt would be refined and potentially split into a chain.
-// For this single-shot implementation, we use a comprehensive system instruction.
-
 const SYSTEM_INSTRUCTION = `
-You are an elite AI Investigative Journalist, Chief Editor, and Fact-Checker for a top-tier international news agency.
-Your goal is to synthesize raw transcripts into a piece of Pulitzer-grade journalism.
+You are the engine of "AI Journalist with Hasnain", an elite digital newsroom platform.
+Your role is to act as a Senior Investigative Journalist, Fact-Checker, and Chief Editor.
 
-ROLE & RESPONSIBILITIES:
-1. MERGE & ANALYZE: Read the provided transcripts. Identify distinct, newsworthy topics.
-2. RIGOROUS FACT-CHECKING (CRITICAL):
-   - You MUST use Google Search to verify every factual claim, statistic, and quote.
-   - Categorize claims as "Verified", "Partially Verified", or "Unverified".
-   - PRIORITIZE verified facts. Use cautious language ("allegedly", "reports suggest") for partially verified info.
-   - DO NOT present unverified claims as facts.
-3. WRITING STYLE (Human-Centric):
-   - Write in a confident, professional newsroom voice (BBC/Reuters style).
-   - NO "In this blog post" or "Here is a summary". Dive straight into the story.
-   - Use phrasing like "According to reports...", "Official data indicates...".
-   - 99% Human-Like: Vary sentence structure. Avoid repetitive AI patterns.
-4. URDU TRANSLATION:
-   - Rewrite the final article in professional, journalistic Urdu (Nasta'liq style context).
-   - NOT a literal translation. Adapt for flow and cultural nuance.
+MISSION:
+Transform raw transcripts into a piece of PREMIUM, PULITZER-GRADE JOURNALISM.
+The output must feel 99% human-written, authoritative, and trusted.
 
-OUTPUT FORMAT:
-Return ONLY a valid JSON object matching the requested schema. Do not wrap in markdown code blocks.
+CORE WORKFLOW (STRICTLY FOLLOW THIS ORDER):
+
+1.  **MERGE & CONTEXTUALIZE**: Combine all scripts into one holistic understanding.
+2.  **TOPIC IDENTIFICATION**: Extract distinct, newsworthy topics. Prioritize by SEO potential and reader interest.
+3.  **RIGOROUS WEB-BASED FACT CHECKING**:
+    *   You MUST use the Google Search tool to verify every single claim, statistic, and quote.
+    *   **Verified**: Confirmed by reputable international/national news or official gov sites.
+    *   **Partially Verified**: Mentioned by media but lacks official confirmation.
+    *   **Unverified**: No credible source found.
+    *   *Action*: Prioritize VERIFIED facts. Use cautious language ("reports suggest") for partials. DO NOT state unverified claims as fact.
+4.  **WRITING (Newsroom Style)**:
+    *   Tone: Confident, professional, BBC/Reuters/Al Jazeera English style.
+    *   Structure: Inverted pyramid (most important info first).
+    *   NO AI Clichés: Avoid "In conclusion", "Delving into", "Let's explore".
+    *   Attribution: FREQUENTLY use "According to major international outlets...", "Official data indicates...".
+5.  **ENRICHMENT**:
+    *   Add [BACKLINK OPPORTUNITY: <source>] markers naturally.
+    *   Add [REFERENCE SIGNAL: <reason>] markers to boost authority.
+6.  **URDU TRANSLATION**:
+    *   Rewrite the *finished* English article into professional Urdu (Nasta'liq context).
+    *   Do NOT translate word-for-word. Capture the *journalistic essence*.
+    *   Use high-quality Urdu vocabulary suitable for a Pakistani audience.
+
+OUTPUT SCHEMA:
+Return ONLY a valid JSON object.
 `;
 
 const RESPONSE_SCHEMA = {
@@ -34,8 +42,8 @@ const RESPONSE_SCHEMA = {
     seo: {
       type: Type.OBJECT,
       properties: {
-        title: { type: Type.STRING, description: "SEO optimized title, max 60 chars" },
-        metaDescription: { type: Type.STRING, description: "SEO meta description, 150-160 chars" }
+        title: { type: Type.STRING, description: "SEO optimized headline, max 60 chars" },
+        metaDescription: { type: Type.STRING, description: "Compelling meta description, 150-160 chars" }
       },
       required: ["title", "metaDescription"]
     },
@@ -46,11 +54,11 @@ const RESPONSE_SCHEMA = {
     },
     blogContent: {
       type: Type.STRING,
-      description: "The full English blog post in Markdown format. Use H2, H3, bolding. Include [BACKLINK OPPORTUNITY] and [REFERENCE SIGNAL] markers."
+      description: "Full English article in Markdown. Use H2 for main topics. Include backlink/reference markers."
     },
     urduContent: {
       type: Type.STRING,
-      description: "The full Urdu translation in Markdown format."
+      description: "Professional Urdu rewrite in Markdown."
     },
     verificationReport: {
       type: Type.ARRAY,
@@ -59,7 +67,7 @@ const RESPONSE_SCHEMA = {
         properties: {
           claim: { type: Type.STRING },
           status: { type: Type.STRING, enum: [VerificationStatus.Verified, VerificationStatus.PartiallyVerified, VerificationStatus.Unverified] },
-          sourceNote: { type: Type.STRING, description: "Brief note on the source or reason for status" }
+          sourceNote: { type: Type.STRING, description: "Source name or reason for status" }
         },
         required: ["claim", "status", "sourceNote"]
       }
@@ -70,10 +78,10 @@ const RESPONSE_SCHEMA = {
         type: Type.OBJECT,
         properties: {
           type: { type: Type.STRING, enum: ["Feature", "Topic"] },
-          context: { type: Type.STRING },
-          prompt: { type: Type.STRING, description: "Highly detailed, photorealistic prompt. No text in image." }
+          context: { type: Type.STRING, description: "Which section this image belongs to" },
+          prompt: { type: Type.STRING, description: "Photorealistic, editorial image prompt. No text/logos." }
         },
-        required: ["type", "prompt"]
+        required: ["type", "context", "prompt"]
       }
     },
     internalLinks: {
@@ -99,43 +107,41 @@ export const generateBlogFromScripts = async (
   
   const ai = new GoogleGenAI({ apiKey });
   
-  // Combine scripts into a structured user prompt
   const userPrompt = `
-    PROCESS THESE 3 SOURCE SCRIPTS:
+    ACT AS "AI JOURNALIST WITH HASNAIN". PROCESS THESE TRANSCRIPTS:
     
-    --- SCRIPT 1 ---
+    === SCRIPT 1 ===
     ${scripts[0]}
     
-    --- SCRIPT 2 ---
+    === SCRIPT 2 ===
     ${scripts[1]}
     
-    --- SCRIPT 3 ---
+    === SCRIPT 3 ===
     ${scripts[2]}
     
-    EXECUTE THE FACT-CHECKING JOURNALISM PIPELINE. 
-    1. Identify main topics.
-    2. Fact check all claims using Google Search.
-    3. Write the authenticated blog post.
-    4. Generate Urdu version.
-    5. Generate Assets (SEO, Images).
+    EXECUTE THE FACT-CHECKING JOURNALISM PIPELINE:
+    1. Identify Topics.
+    2. Fact Check (Google Search).
+    3. Write Authenticated Blog (English).
+    4. Rewrite in Urdu.
+    5. Generate SEO & Assets.
   `;
 
   try {
     onProgress('merging');
-    // We use a short timeout to simulate the feeling of stages, 
-    // though the API call is monolithic in this design for consistency.
-    await new Promise(r => setTimeout(r, 1000));
+    // Simulated delay for UX perception of "Thinking"
+    await new Promise(r => setTimeout(r, 1500));
     
     onProgress('fact-checking');
     
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Using Pro for reasoning and search
+      model: 'gemini-3-pro-preview',
       contents: [
         { role: 'user', parts: [{ text: userPrompt }] }
       ],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        tools: [{ googleSearch: {} }], // Enable Search Grounding
+        tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: RESPONSE_SCHEMA,
       }
@@ -150,7 +156,8 @@ export const generateBlogFromScripts = async (
 
     try {
         const data = JSON.parse(responseText) as BlogData;
-        onProgress('translating'); // Just a visual step before return
+        onProgress('translating'); // Short final stage
+        await new Promise(r => setTimeout(r, 800)); // Smooth transition
         return data;
     } catch (parseError) {
         console.error("JSON Parse Error", parseError, responseText);
