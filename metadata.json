@@ -1,0 +1,5 @@
+{
+  "name": "VeriScript AI Journalist",
+  "description": "A production-grade SaaS tool that transforms raw broadcast scripts into fact-checked, SEO-optimized investigative news blogs using Google Gemini with Search Grounding.",
+  "requestFramePermissions": []
+}
